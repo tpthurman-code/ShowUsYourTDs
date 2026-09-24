@@ -351,21 +351,17 @@ def describe_transactions(txns: list[dict], names: dict[int, str], players: dict
     return lines
 
 
-def detect_week(league_id: str, state: dict) -> int | None:
-    """Pick the most recent week that has scores.
+def detect_week(state: dict) -> int | None:
+    """Return the last fully completed week.
 
-    Sleeper's current week can roll over before or after our scheduled run, so
-    start at the current week and step back if it hasn't been played yet.
+    Sleeper moves its current week forward midweek, so by Thursday the current
+    week is the one about to kick off and the week before it is complete. This
+    stays correct even if the scheduled run is delayed past Thursday kickoff.
     """
     if state.get("season_type") not in ("regular", "post"):
         return None
-    week = int(state.get("week") or 0)
-    while week >= 1:
-        matchups = fetch(f"/league/{league_id}/matchups/{week}") or []
-        if any(float(m.get("points") or 0) > 0 for m in matchups):
-            return week
-        week -= 1
-    return None
+    week = int(state.get("week") or 0) - 1
+    return week if week >= 1 else None
 
 
 def build_recap(league: dict, users, rosters, matchups, txns, players, week: int) -> Recap:
@@ -516,7 +512,7 @@ def main() -> int:
     if (os.environ.get("RECAP_WEEK") or "").strip():
         week = int(os.environ["RECAP_WEEK"])
     else:
-        week = detect_week(league_id, fetch("/state/nfl"))
+        week = detect_week(fetch("/state/nfl"))
         if week is None:
             print("No completed week to recap (offseason or preseason). Nothing sent.")
             return 0

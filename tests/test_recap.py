@@ -107,15 +107,11 @@ class RecapTest(unittest.TestCase):
         html_out = recap.render_html(self.r)
         self.assertIn("Alice&#x27;s Aces", html_out)
 
-    def test_detect_week_steps_back_to_scored_week(self):
-        calls = {4: [{"points": 0}], 3: [{"points": 101.2}]}
-        orig = recap.fetch
-        recap.fetch = lambda path: calls[int(path.rsplit("/", 1)[1])]
-        try:
-            self.assertEqual(recap.detect_week("x", {"season_type": "regular", "week": 4}), 3)
-            self.assertIsNone(recap.detect_week("x", {"season_type": "off", "week": 0}))
-        finally:
-            recap.fetch = orig
+    def test_detect_week_is_previous_week(self):
+        self.assertEqual(recap.detect_week({"season_type": "regular", "week": 4}), 3)
+        self.assertIsNone(recap.detect_week({"season_type": "regular", "week": 1}))
+        self.assertIsNone(recap.detect_week({"season_type": "off", "week": 0}))
+        self.assertIsNone(recap.detect_week({"season_type": "pre", "week": 2}))
 
 
 if __name__ == "__main__":
