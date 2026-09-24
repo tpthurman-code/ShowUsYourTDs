@@ -6,13 +6,15 @@ variables (see README.md):
 
     SLEEPER_LEAGUE_ID   required
     RECAP_WEEK          optional, recap this week instead of auto-detecting
-    EMAIL_TO            comma-separated recipients (required unless DRY_RUN)
+    EMAIL_TO            comma-separated recipients; email is sent only if set
     EMAIL_FROM          defaults to SMTP_USERNAME
     SMTP_HOST           defaults to smtp.gmail.com
     SMTP_PORT           defaults to 465 (implicit TLS); 587 uses STARTTLS
-    SMTP_USERNAME       required unless DRY_RUN
-    SMTP_PASSWORD       required unless DRY_RUN
-    DRY_RUN             "1"/"true" writes the email to OUTPUT_DIR instead of sending
+    SMTP_USERNAME       required when sending email
+    SMTP_PASSWORD       required when sending email
+    GROUPME_BOT_ID      posts the recap to a GroupMe group; only if set
+    CHANNELS            "all" (default), "email" or "groupme": limit where it goes
+    DRY_RUN             "1"/"true" writes the recap to OUTPUT_DIR instead of sending
     OUTPUT_DIR          defaults to "out"
 """
 
@@ -25,6 +27,7 @@ import random
 import smtplib
 import ssl
 import sys
+import time
 import urllib.request
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -472,6 +475,48 @@ def render_html(r: Recap) -> str:
     return "\n".join(parts)
 
 
+GROUPME_MAX = 1000  # GroupMe rejects bot messages longer than this
+
+
+def render_groupme(r: Recap) -> list[str]:
+    """Short chat version: results, awards and standings, split to fit GroupMe."""
+    results = [f"🏈 {r.league_name}: Week {r.week} Recap", r.intro, ""]
+    for g in r.games:
+        w, l = (g.winner, g.loser) if g.winner else (g.home, g.away)
+        verb = "def." if g.winner else "tied"
+        results.append(f"{w.name} {w.points:.2f} {verb} {l.name} {l.points:.2f}")
+        results.append(f"↳ {g.quip}")
+
+    awards = ["🏆 AWARDS"] + [f"• {title}: {desc}" for title, desc in r.awards]
+
+    standings = ["📊 STANDINGS"]
+    for i, s in enumerate(r.standings, 1):
+        rec = f"{s.wins}-{s.losses}" + (f"-{s.ties}" if s.ties else "")
+        standings.append(f"{i}. {s.name} ({rec})")
+    if r.standings_note:
+        standings += ["", r.standings_note]
+
+    messages = []
+    for section in (results, awards, standings):
+        messages += chunk_lines(section, GROUPME_MAX)
+    return messages
+
+
+def chunk_lines(lines: list[str], limit: int) -> list[str]:
+    chunks, current = [], ""
+    for line in lines:
+        line = line[:limit]
+        candidate = f"{current}\n{line}" if current else line
+        if len(candidate) > limit:
+            chunks.append(current)
+            current = line
+        else:
+            current = candidate
+    if current.strip():
+        chunks.append(current)
+    return chunks
+
+
 # --------------------------------------------------------------------------- #
 # Delivery
 # --------------------------------------------------------------------------- #
@@ -505,6 +550,20 @@ def send_email(subject: str, text: str, html_body: str) -> None:
             s.send_message(msg)
 
 
+def post_groupme(bot_id: str, messages: list[str]) -> None:
+    for i, text in enumerate(messages):
+        body = json.dumps({"bot_id": bot_id, "text": text}).encode()
+        req = urllib.request.Request(
+            "https://api.groupme.com/v3/bots/post",
+            data=body,
+            headers={"Content-Type": "application/json", "User-Agent": "weekly-recap"},
+        )
+        with urllib.request.urlopen(req, timeout=30):
+            pass
+        if i < len(messages) - 1:
+            time.sleep(1.5)  # keep messages in order in the chat
+
+
 def main() -> int:
     league_id = os.environ.get("SLEEPER_LEAGUE_ID", "").strip()
     if not league_id:
@@ -534,19 +593,39 @@ def main() -> int:
 
     subject = f"{recap.league_name}: Week {week} Recap"
     text, html_body = render_text(recap), render_html(recap)
+    groupme = render_groupme(recap)
 
     out_dir = Path(os.environ.get("OUTPUT_DIR") or "out")
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "recap.txt").write_text(text)
     (out_dir / "recap.html").write_text(html_body)
+    (out_dir / "groupme.txt").write_text("\n\n----- next message -----\n\n".join(groupme))
     print(text)
 
     if dry_run:
         print(f"DRY_RUN set; wrote recap to {out_dir}/ and skipped sending.")
         return 0
-    send_email(subject, text, html_body)
-    print("Email sent.")
-    return 0
+
+    channels = (os.environ.get("CHANNELS") or "all").strip().lower()
+    want_email = channels in ("all", "email") and bool((os.environ.get("EMAIL_TO") or "").strip())
+    bot_id = (os.environ.get("GROUPME_BOT_ID") or "").strip()
+    want_groupme = channels in ("all", "groupme") and bool(bot_id)
+    if not (want_email or want_groupme):
+        print(f"Nothing to send for CHANNELS={channels}: set EMAIL_TO and/or GROUPME_BOT_ID.", file=sys.stderr)
+        return 1
+
+    failed = False
+    if want_email:
+        send_email(subject, text, html_body)
+        print("Email sent.")
+    if want_groupme:
+        try:
+            post_groupme(bot_id, groupme)
+            print(f"Posted {len(groupme)} messages to GroupMe.")
+        except Exception as exc:  # don't lose the GroupMe error behind a successful email
+            print(f"GroupMe post failed: {exc}", file=sys.stderr)
+            failed = True
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

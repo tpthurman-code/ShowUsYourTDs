@@ -12,8 +12,13 @@ on:
       week:
         description: "Week to recap (leave blank for the last completed week)"
         required: false
+      channels:
+        description: "Where to send it"
+        type: choice
+        options: [all, email, groupme]
+        default: all
       dry_run:
-        description: "Build the recap without sending the email"
+        description: "Build the recap without sending anything"
         type: boolean
         default: false
 
@@ -54,6 +59,8 @@ jobs:
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          GROUPME_BOT_ID: ${{ secrets.GROUPME_BOT_ID }}
+          CHANNELS: ${{ inputs.channels }}
           RECAP_WEEK: ${{ inputs.week }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: python recap.py

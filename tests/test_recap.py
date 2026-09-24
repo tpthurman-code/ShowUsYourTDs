@@ -94,6 +94,22 @@ class RecapTest(unittest.TestCase):
             self.assertNotIn("!.", line)
             self.assertNotIn("!,", line)
 
+    def test_groupme_messages_fit_and_cover_sections(self):
+        msgs = recap.render_groupme(self.r)
+        self.assertEqual(len(msgs), 3)
+        self.assertTrue(all(0 < len(m) <= recap.GROUPME_MAX for m in msgs))
+        self.assertIn("Week 3 Recap", msgs[0])
+        self.assertIn("Alice's Aces 120.50 def. bob 118.00", msgs[0])
+        self.assertTrue(msgs[1].startswith("🏆 AWARDS"))
+        self.assertIn("1. cara (3-0)", msgs[2])
+
+    def test_chunk_lines_splits_long_sections(self):
+        lines = [f"line {i} " + "x" * 90 for i in range(30)]
+        chunks = recap.chunk_lines(lines, 1000)
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(len(c) <= 1000 for c in chunks))
+        self.assertEqual("\n".join(chunks).split("\n"), lines)
+
     def test_every_roast_template_formats(self):
         kw = dict(week=1, w="W", l="L", m="1.00", team="T", pts="1.00", player="P")
         for key, lines in recap.ROASTS.items():

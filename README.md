@@ -1,6 +1,6 @@
 # ShowUsYourTDs
 
-A GitHub Action emails a weekly recap of our Sleeper fantasy football league every Thursday at 4:35pm Pacific, covering the week that ended Monday night.
+A GitHub Action emails a weekly recap (and optionally posts it to GroupMe) of our Sleeper fantasy football league every Thursday at 4:35pm Pacific, covering the week that ended Monday night.
 
 Each recap includes:
 
@@ -26,12 +26,20 @@ Each recap includes:
    | `SMTP_USERNAME`     | yes      | `you@gmail.com`                           |
    | `SMTP_PASSWORD`     | yes      | your Gmail app password                   |
    | `EMAIL_TO`          | yes      | `a@example.com, b@example.com` (sent BCC) |
+   | `GROUPME_BOT_ID`    | no       | see step 4                                |
    | `EMAIL_FROM`        | no       | defaults to `SMTP_USERNAME`               |
    | `SMTP_HOST`         | no       | defaults to `smtp.gmail.com`              |
    | `SMTP_PORT`         | no       | defaults to `465`; use `587` for STARTTLS |
 
-4. **Test it.** Go to **Actions → Weekly Sleeper Recap → Run workflow**. Tick **dry run** to build the recap
-   without sending it; you can download the output from the run's `recap` artifact. You can also enter a specific week.
+4. **Optional: post to GroupMe.** Sign in at [dev.groupme.com](https://dev.groupme.com/bots) with your GroupMe
+   account, then click **Bots → Create Bot**. Pick the league group, give the bot a name (and an avatar image URL
+   if you like), and leave the callback URL blank. Copy the **Bot ID** into a secret named `GROUPME_BOT_ID`.
+   The chat gets a shorter version of the recap (results, awards, standings) across a few messages. GroupMe
+   caps each message at 1,000 characters.
+
+5. **Test it.** Go to **Actions → Weekly Sleeper Recap → Run workflow**. Tick **dry run** to build the recap
+   without sending it; you can download the output (including `groupme.txt`) from the run's `recap` artifact. You
+   can also enter a specific week, and use **channels** to send to only email or only GroupMe.
 
 ## Trash talk
 
