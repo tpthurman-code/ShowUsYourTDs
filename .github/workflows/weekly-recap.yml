@@ -60,7 +60,7 @@ jobs:
 
       - name: Save recap as a build artifact
         if: always() && steps.gate.outputs.skip != 'true'
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: recap
           path: out/
