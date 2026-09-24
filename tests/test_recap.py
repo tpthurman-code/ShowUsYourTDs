@@ -64,12 +64,34 @@ class RecapTest(unittest.TestCase):
 
     def test_awards(self):
         a = dict(self.r.awards)
-        self.assertEqual(a["Top Score"], "cara with 150.00")
-        self.assertEqual(a["Basement Dweller"], "dan with 80.00")
-        self.assertIn("by 70.00", a["Biggest Blowout"])
-        self.assertIn("by 2.50", a["Nail-Biter"])
-        self.assertIn("Star Back (RB, SF): 30.20", a["Player of the Week"])
+        self.assertIn("cara", a["Top Score"])
+        self.assertIn("150.00", a["Top Score"])
+        self.assertIn("dan", a["Basement Dweller"])
+        self.assertIn("80.00", a["Basement Dweller"])
+        self.assertIn("70.00", a["Biggest Blowout"])
+        self.assertIn("2.50", a["Nail-Biter"])
+        self.assertIn("bob", a["Robbed"])
+        self.assertIn("118.00", a["Robbed"])
+        self.assertIn("Alice's Aces", a["Stolen Win"])
+        self.assertIn("Star Back (RB, SF)", a["Player of the Week"])
+        self.assertIn("30.20", a["Player of the Week"])
         self.assertIn("Bench Guy (WR, DAL)", a["Bench Blunder"])
+
+    def test_roasts(self):
+        close, blowout = self.r.games
+        self.assertIn(close.quip, [q.format(w="Alice's Aces", l="bob", m="2.50") for q in recap.ROASTS["game_close"]])
+        self.assertIn(blowout.quip, [q.format(w="cara", l="dan", m="70.00") for q in recap.ROASTS["game_blowout"]])
+        self.assertIn("cara", self.r.standings_note)
+        self.assertIn("dan", self.r.standings_note)
+        # same league/week always produces the same roasts
+        again = recap.build_recap(LEAGUE, USERS, ROSTERS, MATCHUPS, TXNS, PLAYERS, 3)
+        self.assertEqual(recap.render_text(again), recap.render_text(self.r))
+
+    def test_every_roast_template_formats(self):
+        kw = dict(week=1, w="W", l="L", m="1.00", team="T", pts="1.00", player="P")
+        for key, lines in recap.ROASTS.items():
+            for line in lines:
+                line.format(**kw)
 
     def test_transactions(self):
         t = self.r.transactions

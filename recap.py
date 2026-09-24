@@ -21,6 +21,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import random
 import smtplib
 import ssl
 import sys
@@ -31,6 +32,81 @@ from email.message import EmailMessage
 from pathlib import Path
 
 API = "https://api.sleeper.app/v1"
+
+# Trash talk. One line is picked at random from each list; the choice is
+# seeded by league/season/week so re-running a week gives the same roasts.
+ROASTS = {
+    "intro": [
+        "Another week, another round of questionable lineup decisions. Here's the damage.",
+        "The scores are final and the excuses are already rolling in.",
+        "Week {week} is in the books. Some of you managed. Some of you just clicked buttons.",
+        "Grab a victory cigar or a box of tissues. Week {week} results are in.",
+    ],
+    "game_tie": [
+        "{w} and {l} tied. Nobody wins, everybody sulks.",
+        "A tie. Both of you should think about what you've done.",
+    ],
+    "game_close": [
+        "{l} lost by {m}. That's one extra point. Think about it all week.",
+        "{w} survived by {m}. Don't get cocky.",
+        "Decided by {m}. {l} will be refreshing stat corrections until Thursday.",
+    ],
+    "game_blowout": [
+        "{w} won by {m}. {l}, blink twice if you need help.",
+        "A {m}-point beatdown. {l} never got off the bus.",
+        "{l} got flattened by {m}. Somebody get the license plate.",
+    ],
+    "game_normal": [
+        "{w} handled business. {l}, maybe try a better lineup next week.",
+        "{w} takes it. {l} gets a whole week to think about it.",
+        "Clean win for {w}. No excuses, {l}.",
+    ],
+    "top": [
+        "{team} dropped {pts}. Leave some points for the rest of the league.",
+        "{team} put up {pts} and will be unbearable in the group chat all week.",
+    ],
+    "low": [
+        "{team} managed {pts}. Did you set a lineup or just close your eyes and tap?",
+        "{team} scored {pts}. Bold of you to show up at all.",
+        "{team} put up {pts}. Rock bottom has a basement, apparently.",
+    ],
+    "blowout": [
+        "{w} beat {l} by {m}. Somebody check on {l}.",
+        "{w} beat {l} by {m}. That wasn't a matchup, it was a hostage situation.",
+    ],
+    "nail": [
+        "{w} edged {l} by {m}. {l}, that one's going to sting.",
+        "{w} beat {l} by {m}. Somewhere, {l} is staring at a bench player.",
+    ],
+    "robbed": [
+        "{team} scored {pts} and still lost. Life comes at you fast.",
+        "{team} put up {pts} and took an L anyway. Brutal.",
+    ],
+    "stolen": [
+        "{team} won with just {pts}. Didn't earn it, still counts.",
+        "{team} squeaked out a win with {pts}. Thank your opponent's lineup.",
+    ],
+    "player": [
+        "{player} put up {pts} for {team}. You're welcome, {team}.",
+        "{player} dropped {pts} for {team}, who will absolutely take all the credit.",
+    ],
+    "bench": [
+        "{team} left {player} on the bench for {pts}. Bold strategy.",
+        "{team} benched {player}, who scored {pts}. The start/sit gods are laughing.",
+    ],
+    "first": [
+        "{team} sits on top. Enjoy it while it lasts.",
+        "{team} leads the league. Everyone else, you know who to target.",
+    ],
+    "last": [
+        "{team} is propping up the whole table from the bottom. Thanks for your service.",
+        "{team} is in last. Every trade offer is now officially a cry for help.",
+    ],
+}
+
+
+def roast(rng: random.Random, key: str, **kw) -> str:
+    return rng.choice(ROASTS[key]).format(**kw)
 
 
 def fetch(path: str):
@@ -57,6 +133,7 @@ class TeamWeek:
 class Game:
     home: TeamWeek
     away: TeamWeek
+    quip: str = ""
 
     @property
     def winner(self) -> TeamWeek | None:
@@ -91,8 +168,10 @@ class Recap:
     league_name: str
     season: str
     week: int
+    intro: str
     games: list[Game]
     standings: list[Standing]
+    standings_note: str
     awards: list[tuple[str, str]]  # (title, description)
     transactions: list[str]
 
@@ -169,15 +248,17 @@ def build_standings(rosters: list[dict], names: dict[int, str]) -> list[Standing
     return rows
 
 
-def build_awards(team_weeks: list[TeamWeek], games: list[Game], players: dict) -> list[tuple[str, str]]:
+def build_awards(
+    team_weeks: list[TeamWeek], games: list[Game], players: dict, rng: random.Random
+) -> list[tuple[str, str]]:
     awards: list[tuple[str, str]] = []
     if not team_weeks:
         return awards
 
     top = max(team_weeks, key=lambda t: t.points)
     low = min(team_weeks, key=lambda t: t.points)
-    awards.append(("Top Score", f"{top.name} with {top.points:.2f}"))
-    awards.append(("Basement Dweller", f"{low.name} with {low.points:.2f}"))
+    awards.append(("Top Score", roast(rng, "top", team=top.name, pts=f"{top.points:.2f}")))
+    awards.append(("Basement Dweller", roast(rng, "low", team=low.name, pts=f"{low.points:.2f}")))
 
     decided = [g for g in games if g.winner]
     if decided:
@@ -185,25 +266,52 @@ def build_awards(team_weeks: list[TeamWeek], games: list[Game], players: dict) -
         close = min(decided, key=lambda g: g.margin)
         awards.append((
             "Biggest Blowout",
-            f"{blowout.winner.name} beat {blowout.loser.name} by {blowout.margin:.2f}",
+            roast(rng, "blowout", w=blowout.winner.name, l=blowout.loser.name, m=f"{blowout.margin:.2f}"),
         ))
         awards.append((
             "Nail-Biter",
-            f"{close.winner.name} edged {close.loser.name} by {close.margin:.2f}",
+            roast(rng, "nail", w=close.winner.name, l=close.loser.name, m=f"{close.margin:.2f}"),
         ))
+    if len(decided) > 1:
+        robbed = max((g.loser for g in decided), key=lambda t: t.points)
+        stolen = min((g.winner for g in decided), key=lambda t: t.points)
+        awards.append(("Robbed", roast(rng, "robbed", team=robbed.name, pts=f"{robbed.points:.2f}")))
+        awards.append(("Stolen Win", roast(rng, "stolen", team=stolen.name, pts=f"{stolen.points:.2f}")))
 
     starters = [(t, pid, pts) for t in team_weeks for pid, pts in t.starters]
     if starters:
         t, pid, pts = max(starters, key=lambda x: x[2])
-        awards.append(("Player of the Week", f"{player_name(players, pid)}: {pts:.2f} for {t.name}"))
+        awards.append((
+            "Player of the Week",
+            roast(rng, "player", player=player_name(players, pid), pts=f"{pts:.2f}", team=t.name),
+        ))
 
     bench = [(t, pid, pts) for t in team_weeks for pid, pts in t.bench]
     if bench:
         t, pid, pts = max(bench, key=lambda x: x[2])
         if pts > 0:
-            awards.append(("Bench Blunder", f"{t.name} left {player_name(players, pid)} on the bench for {pts:.2f}"))
+            awards.append((
+                "Bench Blunder",
+                roast(rng, "bench", team=t.name, player=player_name(players, pid), pts=f"{pts:.2f}"),
+            ))
 
     return awards
+
+
+def game_quip(g: Game, rng: random.Random) -> str:
+    if g.winner is None:
+        return roast(rng, "game_tie", w=g.home.name, l=g.away.name)
+    kind = "close" if g.margin < 5 else "blowout" if g.margin >= 40 else "normal"
+    return roast(rng, f"game_{kind}", w=g.winner.name, l=g.loser.name, m=f"{g.margin:.2f}")
+
+
+def standings_note(standings: list[Standing], rng: random.Random) -> str:
+    if len(standings) < 2:
+        return ""
+    return " ".join([
+        roast(rng, "first", team=standings[0].name),
+        roast(rng, "last", team=standings[-1].name),
+    ])
 
 
 def describe_transactions(txns: list[dict], names: dict[int, str], players: dict) -> list[str]:
@@ -261,16 +369,22 @@ def detect_week(league_id: str, state: dict) -> int | None:
 
 
 def build_recap(league: dict, users, rosters, matchups, txns, players, week: int) -> Recap:
+    rng = random.Random(f"{league.get('league_id')}-{league.get('season')}-{week}")
     names = team_names(users, rosters)
     tws = build_team_weeks(matchups, names)
     games = pair_games(tws)
+    for g in games:
+        g.quip = game_quip(g, rng)
+    standings = build_standings(rosters, names)
     return Recap(
         league_name=league.get("name", "League"),
         season=str(league.get("season", "")),
         week=week,
+        intro=roast(rng, "intro", week=week),
         games=games,
-        standings=build_standings(rosters, names),
-        awards=build_awards([tw for _, tw in tws], games, players),
+        standings=standings,
+        standings_note=standings_note(standings, rng),
+        awards=build_awards([tw for _, tw in tws], games, players, rng),
         transactions=describe_transactions(txns, names, players),
     )
 
@@ -281,12 +395,13 @@ def build_recap(league: dict, users, rosters, matchups, txns, players, week: int
 
 
 def render_text(r: Recap) -> str:
-    out = [f"{r.league_name} - Week {r.week} Recap ({r.season})", ""]
+    out = [f"{r.league_name} - Week {r.week} Recap ({r.season})", "", r.intro, ""]
     out.append("RESULTS")
     for g in r.games:
         w, l = (g.winner, g.loser) if g.winner else (g.home, g.away)
         verb = "def." if g.winner else "tied"
         out.append(f"  {w.name} {w.points:.2f} {verb} {l.name} {l.points:.2f}")
+        out.append(f"    {g.quip}")
     if r.awards:
         out += ["", "AWARDS"]
         out += [f"  {title}: {desc}" for title, desc in r.awards]
@@ -294,6 +409,8 @@ def render_text(r: Recap) -> str:
     for i, s in enumerate(r.standings, 1):
         rec = f"{s.wins}-{s.losses}" + (f"-{s.ties}" if s.ties else "")
         out.append(f"  {i:>2}. {s.name} ({rec})  PF {s.points_for:.2f}  PA {s.points_against:.2f}")
+    if r.standings_note:
+        out.append(f"  {r.standings_note}")
     if r.transactions:
         out += ["", "TRANSACTIONS"]
         out += [f"  - {t}" for t in r.transactions]
@@ -314,6 +431,8 @@ def render_html(r: Recap) -> str:
         games.append(
             f"<tr><td {td}><b>{e(w.name)}</b></td><td {tdr}><b>{w.points:.2f}</b></td>"
             f"<td {td}>{e(l.name)}</td><td {tdr}>{l.points:.2f}</td></tr>"
+            f'<tr><td colspan="4" style="padding:0 10px 10px;color:#6b7280;font-style:italic;'
+            f'border-bottom:1px solid #e5e7eb">{e(g.quip)}</td></tr>'
         )
 
     awards = "".join(f"<li style=\"margin:4px 0\"><b>{e(t)}:</b> {e(d)}</li>" for t, d in r.awards)
@@ -333,6 +452,7 @@ def render_html(r: Recap) -> str:
         'max-width:640px;margin:0 auto;color:#111827">',
         f'<h1 style="font-size:24px;margin:0 0 4px">{e(r.league_name)}</h1>',
         f'<div style="color:#6b7280">Week {r.week} Recap &middot; {e(r.season)} season</div>',
+        f'<p style="margin:16px 0 0">{e(r.intro)}</p>',
         f"<h2 {h2}>Results</h2>",
         f'<table style="border-collapse:collapse;width:100%"><tr><th {th}>Winner</th><th {thr}></th>'
         f"<th {th}>Loser</th><th {thr}></th></tr>{''.join(games)}</table>",
@@ -344,6 +464,8 @@ def render_html(r: Recap) -> str:
         f'<table style="border-collapse:collapse;width:100%"><tr><th {th}>#</th><th {th}>Team</th>'
         f"<th {thr}>Record</th><th {thr}>PF</th><th {thr}>PA</th></tr>{''.join(standings)}</table>",
     ]
+    if r.standings_note:
+        parts.append(f'<p style="margin:10px 0 0;color:#6b7280;font-style:italic">{e(r.standings_note)}</p>')
     if txns:
         parts += [f"<h2 {h2}>Transactions</h2>", f'<ul style="padding-left:20px">{txns}</ul>']
     parts.append("</div>")

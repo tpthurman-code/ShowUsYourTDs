@@ -4,8 +4,9 @@ A GitHub Action emails a weekly recap of our Sleeper fantasy football league eve
 
 Each recap includes:
 
-- **Results**: every matchup's winner, loser and score
-- **Awards**: top score, lowest score, biggest blowout, closest game, player of the week, and the best player left on a bench
+- **Results**: every matchup's winner, loser and score, each with a line of trash talk
+- **Awards**: top score, lowest score, biggest blowout, closest game, highest-scoring loser, lowest-scoring winner,
+  player of the week, and the best player left on a bench
 - **Standings**: record, points for and points against
 - **Transactions**: waiver claims (with FAAB bids), free-agent moves and trades
 
@@ -31,6 +32,13 @@ Each recap includes:
 
 4. **Test it.** Go to **Actions → Weekly Sleeper Recap → Run workflow**. Tick **dry run** to build the recap
    without sending it; you can download the output from the run's `recap` artifact. You can also enter a specific week.
+
+## Trash talk
+
+The recap roasts the league a little. The lines are in the `ROASTS` dictionary at the top of `recap.py`. Add, edit
+or delete lines there to change the tone. Each line can use placeholders such as `{team}`, `{pts}`, `{w}` (winner),
+`{l}` (loser) and `{m}` (margin). A test checks that every line formats. Lines are picked at random but seeded by
+league and week, so re-running the same week gives the same email.
 
 ## Schedule
 
