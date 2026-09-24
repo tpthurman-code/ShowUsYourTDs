@@ -1,0 +1,48 @@
+name: Weekly Sleeper Recap
+
+on:
+  schedule:
+    # Tuesdays at 13:47 UTC (9:47am ET during the season), after Monday Night Football.
+    # GitHub cron is always UTC and may run a few minutes late.
+    - cron: "47 13 * * 2"
+  workflow_dispatch:
+    inputs:
+      week:
+        description: "Week to recap (leave blank to auto-detect the latest scored week)"
+        required: false
+      dry_run:
+        description: "Build the recap without sending the email"
+        type: boolean
+        default: false
+
+jobs:
+  recap:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build and send recap
+        env:
+          SLEEPER_LEAGUE_ID: ${{ secrets.SLEEPER_LEAGUE_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          RECAP_WEEK: ${{ inputs.week }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python recap.py
+
+      - name: Save recap as a build artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recap
+          path: out/
+          if-no-files-found: ignore
