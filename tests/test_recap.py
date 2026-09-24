@@ -87,6 +87,13 @@ class RecapTest(unittest.TestCase):
         again = recap.build_recap(LEAGUE, USERS, ROSTERS, MATCHUPS, TXNS, PLAYERS, 3)
         self.assertEqual(recap.render_text(again), recap.render_text(self.r))
 
+    def test_roast_tidies_punctuation_after_team_names(self):
+        rng = recap.random.Random(0)
+        for _ in range(20):
+            line = recap.roast(rng, "blowout", w="W", l="Layeth the smacketh down!", m="1.00")
+            self.assertNotIn("!.", line)
+            self.assertNotIn("!,", line)
+
     def test_every_roast_template_formats(self):
         kw = dict(week=1, w="W", l="L", m="1.00", team="T", pts="1.00", player="P")
         for key, lines in recap.ROASTS.items():

@@ -106,7 +106,11 @@ ROASTS = {
 
 
 def roast(rng: random.Random, key: str, **kw) -> str:
-    return rng.choice(ROASTS[key]).format(**kw)
+    line = rng.choice(ROASTS[key]).format(**kw)
+    # Team names like "Layeth the smacketh down!" shouldn't end up as "down!." or "down!,"
+    for mark in "!?.":
+        line = line.replace(f"{mark}.", mark).replace(f"{mark},", mark)
+    return line
 
 
 def fetch(path: str):
