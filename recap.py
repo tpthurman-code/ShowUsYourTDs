@@ -105,6 +105,12 @@ ROASTS = {
         "{team} is propping up the whole table from the bottom. Thanks for your service.",
         "{team} is in last. Every trade offer is now officially a cry for help.",
     ],
+    "signoff": [
+        "Set your lineups. Check your injuries. Stop blaming the kicker. 🫡",
+        "That's the week. Losers, the group chat is watching. 👀",
+        "Winners, enjoy it. Losers, the waiver wire is open. 🫡",
+        "See you next week. Try not to start anyone on bye. 🫡",
+    ],
 }
 
 
@@ -181,6 +187,7 @@ class Recap:
     standings_note: str
     awards: list[tuple[str, str]]  # (title, description)
     transactions: list[str]
+    signoff: str = ""
 
 
 # --------------------------------------------------------------------------- #
@@ -389,6 +396,7 @@ def build_recap(league: dict, users, rosters, matchups, txns, players, week: int
         standings_note=standings_note(standings, rng),
         awards=build_awards([tw for _, tw in tws], games, players, rng),
         transactions=describe_transactions(txns, names, players),
+        signoff=roast(rng, "signoff"),
     )
 
 
@@ -478,38 +486,66 @@ def render_html(r: Recap) -> str:
 GROUPME_MAX = 1000  # GroupMe rejects bot messages longer than this
 
 
+AWARD_EMOJI = {
+    "Top Score": "🔥",
+    "Basement Dweller": "🪦",
+    "Biggest Blowout": "💥",
+    "Nail-Biter": "😬",
+    "Robbed": "🚨",
+    "Stolen Win": "🍀",
+    "Player of the Week": "⭐",
+    "Bench Blunder": "🪑",
+}
+DIVIDER = "━━━━━━━━━━━━━━"
+
+
 def render_groupme(r: Recap) -> list[str]:
-    """Short chat version: results, awards and standings, split to fit GroupMe."""
-    results = [f"🏈 {r.league_name}: Week {r.week} Recap", r.intro, ""]
+    """Chat version: results, awards and standings, split to fit GroupMe.
+
+    GroupMe is plain text, so layout comes from emoji, blank lines and
+    dividers. Each list below is one section of blocks; a message only ever
+    breaks between blocks, never in the middle of a matchup or award.
+    """
+    results = [
+        f"🏈 {r.league_name.upper()}\nWEEK {r.week} RECAP\n{DIVIDER}\n{r.intro}",
+    ]
     for g in r.games:
-        w, l = (g.winner, g.loser) if g.winner else (g.home, g.away)
-        verb = "def." if g.winner else "tied"
-        results.append(f"{w.name} {w.points:.2f} {verb} {l.name} {l.points:.2f}")
-        results.append(f"↳ {g.quip}")
+        if g.winner:
+            top, bottom = f"✅ {g.winner.name}  {g.winner.points:.2f}", f"❌ {g.loser.name}  {g.loser.points:.2f}"
+        else:
+            top, bottom = f"🤝 {g.home.name}  {g.home.points:.2f}", f"🤝 {g.away.name}  {g.away.points:.2f}"
+        results.append(f"{top}\n{bottom}\n💬 {g.quip}")
 
-    awards = ["🏆 AWARDS"] + [f"• {title}: {desc}" for title, desc in r.awards]
+    awards = [f"🏆 AWARDS\n{DIVIDER}"]
+    awards += [f"{AWARD_EMOJI.get(title, '🏅')} {title.upper()}\n{desc}" for title, desc in r.awards]
 
-    standings = ["📊 STANDINGS"]
+    medals = {1: "🥇", 2: "🥈", 3: "🥉"}
+    rows = []
     for i, s in enumerate(r.standings, 1):
         rec = f"{s.wins}-{s.losses}" + (f"-{s.ties}" if s.ties else "")
-        standings.append(f"{i}. {s.name} ({rec})")
+        rank = medals.get(i, f"{i}.")
+        rows.append(f"{rank} {s.name}  ·  {rec}  ·  {s.points_for:.1f} PF")
+    standings = [f"📊 STANDINGS\n{DIVIDER}", "\n".join(rows)]
     if r.standings_note:
-        standings += ["", r.standings_note]
+        standings.append(r.standings_note)
+    if r.signoff:
+        standings.append(r.signoff)
 
     messages = []
     for section in (results, awards, standings):
-        messages += chunk_lines(section, GROUPME_MAX)
+        messages += chunk_blocks(section, GROUPME_MAX)
     return messages
 
 
-def chunk_lines(lines: list[str], limit: int) -> list[str]:
+def chunk_blocks(blocks: list[str], limit: int) -> list[str]:
+    """Join blocks with blank lines, starting a new message when one would overflow."""
     chunks, current = [], ""
-    for line in lines:
-        line = line[:limit]
-        candidate = f"{current}\n{line}" if current else line
+    for block in blocks:
+        block = block[:limit]
+        candidate = f"{current}\n\n{block}" if current else block
         if len(candidate) > limit:
             chunks.append(current)
-            current = line
+            current = block
         else:
             current = candidate
     if current.strip():
