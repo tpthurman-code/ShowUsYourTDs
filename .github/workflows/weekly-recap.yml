@@ -9,6 +9,11 @@ on:
     - cron: "0 16 * * 2" # 8:00am PST (Nov-Mar)
   workflow_dispatch:
     inputs:
+      league:
+        description: "Which league"
+        type: choice
+        options: [all, "1", "2"]
+        default: all
       week:
         description: "Week to recap (leave blank for the last completed week)"
         required: false
@@ -24,21 +29,38 @@ on:
 
 jobs:
   recap:
+    name: League ${{ matrix.league }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false # one league failing shouldn't stop the other
+      matrix:
+        # Each league reads secrets ending in its suffix: league 1 uses
+        # SLEEPER_LEAGUE_ID, EMAIL_TO and GROUPME_BOT_ID; league 2 uses
+        # SLEEPER_LEAGUE_ID_2, EMAIL_TO_2 and GROUPME_BOT_ID_2. The SMTP
+        # settings are shared. To add a league, add a row here and to the
+        # "league" input above.
+        include:
+          - league: "1"
+            suffix: ""
+          - league: "2"
+            suffix: "_2"
     steps:
-      - name: Check send time
+      - name: Check whether to run
         id: gate
         env:
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
+          PICKED: ${{ inputs.league || 'all' }}
+          LEAGUE: ${{ matrix.league }}
+          LEAGUE_ID: ${{ secrets[format('SLEEPER_LEAGUE_ID{0}', matrix.suffix)] }}
         run: |
+          skip() { echo "Skipping: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
+          if [ -z "$LEAGUE_ID" ]; then skip "no SLEEPER_LEAGUE_ID${{ matrix.suffix }} secret for league $LEAGUE."; fi
+          if [ "$PICKED" != "all" ] && [ "$PICKED" != "$LEAGUE" ]; then skip "only league $PICKED was requested."; fi
           if [ "$EVENT" = "schedule" ]; then
             if [ "$(TZ=America/Los_Angeles date +%Z)" = "PDT" ]; then want="0 15 * * 2"; else want="0 16 * * 2"; fi
-            if [ "$SCHEDULE" != "$want" ]; then
-              echo "Skipping: '$SCHEDULE' is not 8:00am Pacific right now."
-              echo "skip=true" >> "$GITHUB_OUTPUT"
-            fi
+            if [ "$SCHEDULE" != "$want" ]; then skip "'$SCHEDULE' is not 8:00am Pacific right now."; fi
           fi
 
       - uses: actions/checkout@v5
@@ -52,14 +74,14 @@ jobs:
       - name: Build and send recap
         if: steps.gate.outputs.skip != 'true'
         env:
-          SLEEPER_LEAGUE_ID: ${{ secrets.SLEEPER_LEAGUE_ID }}
+          SLEEPER_LEAGUE_ID: ${{ secrets[format('SLEEPER_LEAGUE_ID{0}', matrix.suffix)] }}
           SMTP_HOST: ${{ secrets.SMTP_HOST }}
           SMTP_PORT: ${{ secrets.SMTP_PORT }}
           SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
           SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          GROUPME_BOT_ID: ${{ secrets.GROUPME_BOT_ID }}
+          EMAIL_TO: ${{ secrets[format('EMAIL_TO{0}', matrix.suffix)] }}
+          GROUPME_BOT_ID: ${{ secrets[format('GROUPME_BOT_ID{0}', matrix.suffix)] }}
           CHANNELS: ${{ inputs.channels }}
           RECAP_WEEK: ${{ inputs.week }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -69,6 +91,6 @@ jobs:
         if: always() && steps.gate.outputs.skip != 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: recap
+          name: recap-league-${{ matrix.league }}
           path: out/
           if-no-files-found: ignore

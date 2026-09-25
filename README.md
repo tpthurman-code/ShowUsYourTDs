@@ -41,6 +41,20 @@ Each recap includes:
    without sending it; you can download the output (including `groupme.txt`) from the run's `recap` artifact. You
    can also enter a specific week, and use **channels** to send to only email or only GroupMe.
 
+## A second league
+
+The workflow runs each league as its own job. League 2 uses the same secrets with a `_2` suffix:
+
+| Secret                | For league 2                                            |
+| --------------------- | ------------------------------------------------------- |
+| `SLEEPER_LEAGUE_ID_2` | the second league's ID (league 2 is skipped until set)  |
+| `EMAIL_TO_2`          | that league's recipients (leave unset for no email)     |
+| `GROUPME_BOT_ID_2`    | a bot created in that league's GroupMe group (optional) |
+
+The Gmail sender (`SMTP_USERNAME` / `SMTP_PASSWORD`) is shared. On manual runs, the **league** input picks one
+league or both. To add a third league, add a row to the `matrix` in the workflow with suffix `_3` and add `"3"` to the
+`league` input options.
+
 ## Trash talk
 
 The recap roasts the league a little. The lines are in the `ROASTS` dictionary at the top of `recap.py`. Add, edit
