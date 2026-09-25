@@ -31,8 +31,10 @@ import time
 import urllib.request
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 API = "https://api.sleeper.app/v1"
 
@@ -365,17 +367,21 @@ def describe_transactions(txns: list[dict], names: dict[int, str], players: dict
     return lines
 
 
-def detect_week(state: dict) -> int | None:
+def detect_week(state: dict, weekday: int, week_has_scores) -> int | None:
     """Return the last fully completed week.
 
-    Sleeper moves its current week forward midweek, so by Thursday the current
-    week is the one about to kick off and the week before it is complete. This
-    stays correct even if the scheduled run is delayed past Thursday kickoff.
+    weekday is today in Pacific time (Monday=0). Sleeper moves its current week
+    forward sometime on Tuesday or Wednesday, so on those days the current week
+    is the one that just finished if it has scores, and otherwise it has already
+    rolled over to the next week. From Thursday through Monday the current week
+    is still being played, so the week before it is the last complete one.
     """
     if state.get("season_type") not in ("regular", "post"):
         return None
-    week = int(state.get("week") or 0) - 1
-    return week if week >= 1 else None
+    current = int(state.get("week") or 0)
+    if weekday in (1, 2) and current >= 1 and week_has_scores(current):
+        return current
+    return current - 1 if current >= 2 else None
 
 
 def build_recap(league: dict, users, rosters, matchups, txns, players, week: int) -> Recap:
@@ -611,7 +617,12 @@ def main() -> int:
     if (os.environ.get("RECAP_WEEK") or "").strip():
         week = int(os.environ["RECAP_WEEK"])
     else:
-        week = detect_week(fetch("/state/nfl"))
+        weekday = datetime.now(ZoneInfo("America/Los_Angeles")).weekday()
+        week = detect_week(
+            fetch("/state/nfl"),
+            weekday,
+            lambda w: any(float(m.get("points") or 0) > 0 for m in fetch(f"/league/{league_id}/matchups/{w}") or []),
+        )
         if week is None:
             print("No completed week to recap (offseason or preseason). Nothing sent.")
             return 0

@@ -2,11 +2,11 @@ name: Weekly Sleeper Recap
 
 on:
   schedule:
-    # Thursdays at 4:35pm Pacific. GitHub cron is always UTC and has no daylight
+    # Tuesdays at 8:00am Pacific. GitHub cron is always UTC and has no daylight
     # saving support, so both UTC times are listed and the "Check send time" step
     # below skips whichever one doesn't match Pacific time that day.
-    - cron: "35 23 * * 4" # 4:35pm PDT (Mar-Nov)
-    - cron: "35 0 * * 5"  # 4:35pm PST (Nov-Mar)
+    - cron: "0 15 * * 2" # 8:00am PDT (Mar-Nov)
+    - cron: "0 16 * * 2" # 8:00am PST (Nov-Mar)
   workflow_dispatch:
     inputs:
       week:
@@ -34,9 +34,9 @@ jobs:
           SCHEDULE: ${{ github.event.schedule }}
         run: |
           if [ "$EVENT" = "schedule" ]; then
-            if [ "$(TZ=America/Los_Angeles date +%Z)" = "PDT" ]; then want="35 23 * * 4"; else want="35 0 * * 5"; fi
+            if [ "$(TZ=America/Los_Angeles date +%Z)" = "PDT" ]; then want="0 15 * * 2"; else want="0 16 * * 2"; fi
             if [ "$SCHEDULE" != "$want" ]; then
-              echo "Skipping: '$SCHEDULE' is not 4:35pm Pacific right now."
+              echo "Skipping: '$SCHEDULE' is not 8:00am Pacific right now."
               echo "skip=true" >> "$GITHUB_OUTPUT"
             fi
           fi

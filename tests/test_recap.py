@@ -132,11 +132,24 @@ class RecapTest(unittest.TestCase):
         html_out = recap.render_html(self.r)
         self.assertIn("Alice&#x27;s Aces", html_out)
 
-    def test_detect_week_is_previous_week(self):
-        self.assertEqual(recap.detect_week({"season_type": "regular", "week": 4}), 3)
-        self.assertIsNone(recap.detect_week({"season_type": "regular", "week": 1}))
-        self.assertIsNone(recap.detect_week({"season_type": "off", "week": 0}))
-        self.assertIsNone(recap.detect_week({"season_type": "pre", "week": 2}))
+    def test_detect_week(self):
+        reg = lambda w: {"season_type": "regular", "week": w}
+        scored = lambda w: True
+        unscored = lambda w: False
+        TUE, WED, THU, MON = 1, 2, 3, 0
+        # Tuesday before Sleeper rolls over: current week just finished
+        self.assertEqual(recap.detect_week(reg(3), TUE, scored), 3)
+        # Tuesday/Wednesday after rollover: new week has no scores yet
+        self.assertEqual(recap.detect_week(reg(4), TUE, unscored), 3)
+        self.assertEqual(recap.detect_week(reg(4), WED, unscored), 3)
+        # Thursday-Monday: current week is in progress, recap the one before
+        self.assertEqual(recap.detect_week(reg(4), THU, scored), 3)
+        self.assertEqual(recap.detect_week(reg(4), MON, scored), 3)
+        # Before any week is complete, and outside the season
+        self.assertIsNone(recap.detect_week(reg(1), TUE, unscored))
+        self.assertIsNone(recap.detect_week(reg(1), THU, scored))
+        self.assertIsNone(recap.detect_week({"season_type": "off", "week": 0}, TUE, scored))
+        self.assertIsNone(recap.detect_week({"season_type": "pre", "week": 2}, TUE, scored))
 
 
 if __name__ == "__main__":

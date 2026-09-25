@@ -1,6 +1,6 @@
 # ShowUsYourTDs
 
-A GitHub Action emails a weekly recap (and optionally posts it to GroupMe) of our Sleeper fantasy football league every Thursday at 4:35pm Pacific, covering the week that ended Monday night.
+A GitHub Action emails a weekly recap (and optionally posts it to GroupMe) of our Sleeper fantasy football league every Tuesday at 8:00am Pacific, covering the week that ended Monday night.
 
 Each recap includes:
 
@@ -50,13 +50,15 @@ league and week, so re-running the same week gives the same email.
 
 ## Schedule
 
-The workflow runs Thursdays at 4:35pm Pacific, all year round. GitHub cron only uses UTC and ignores daylight saving
-time, so `.github/workflows/weekly-recap.yml` lists both UTC times (23:35 Thursday for PDT, 00:35 Friday for PST).
-The "Check send time" step skips whichever one doesn't match Pacific time that day. To change the time, update both
-`cron` lines and the matching strings in that step.
+The workflow runs Tuesdays at 8:00am Pacific, all year round. GitHub cron only uses UTC and ignores daylight saving
+time, so `.github/workflows/weekly-recap.yml` lists both UTC times (15:00 for PDT, 16:00 for PST). The "Check send
+time" step skips whichever one doesn't match Pacific time that day. To change the time, update both `cron` lines and
+the matching strings in that step. GitHub runs scheduled jobs a little late when it's busy, so expect the recap
+a few minutes after 8.
 
-The recap always covers the last completed week (Sleeper's current week minus one). A run that GitHub delays past
-Thursday Night Football kickoff still recaps the right week.
+The recap covers the last completed week. On Tuesday and Wednesday that's Sleeper's current week if it has scores
+(Sleeper hasn't moved on yet), otherwise the week before. From Thursday to Monday it's always the week before the
+one being played.
 
 If no week needs a recap (offseason or preseason), the job exits without sending anything.
 
