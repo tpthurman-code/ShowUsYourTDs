@@ -3,7 +3,7 @@ name: Weekly Sleeper Recap
 on:
   schedule:
     # Tuesdays at 8:00am Pacific. GitHub cron is always UTC and has no daylight
-    # saving support, so both UTC times are listed and the "Check send time" step
+    # saving support, so both UTC times are listed and the "Check whether to run" step
     # below skips whichever one doesn't match Pacific time that day.
     - cron: "0 15 * * 2" # 8:00am PDT (Mar-Nov)
     - cron: "0 16 * * 2" # 8:00am PST (Nov-Mar)

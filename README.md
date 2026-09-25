@@ -65,8 +65,8 @@ league and week, so re-running the same week gives the same email.
 ## Schedule
 
 The workflow runs Tuesdays at 8:00am Pacific, all year round. GitHub cron only uses UTC and ignores daylight saving
-time, so `.github/workflows/weekly-recap.yml` lists both UTC times (15:00 for PDT, 16:00 for PST). The "Check send
-time" step skips whichever one doesn't match Pacific time that day. To change the time, update both `cron` lines and
+time, so `.github/workflows/weekly-recap.yml` lists both UTC times (15:00 for PDT, 16:00 for PST). The "Check whether
+to run" step skips whichever one doesn't match Pacific time that day. To change the time, update both `cron` lines and
 the matching strings in that step. GitHub runs scheduled jobs a little late when it's busy, so expect the recap
 a few minutes after 8.
 
