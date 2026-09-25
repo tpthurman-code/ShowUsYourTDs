@@ -43,7 +43,8 @@ Each recap includes:
 
 ## A second league
 
-The workflow runs each league as its own job. League 2 uses the same secrets with a `_2` suffix:
+The workflow runs each league as its own job: **Show Us Your TD's** (league 1) and **Sunday Fundays** (league 2).
+League 2 uses the same secrets with a `_2` suffix:
 
 | Secret                | For league 2                                            |
 | --------------------- | ------------------------------------------------------- |
@@ -52,8 +53,8 @@ The workflow runs each league as its own job. League 2 uses the same secrets wit
 | `GROUPME_BOT_ID_2`    | a bot created in that league's GroupMe group (optional) |
 
 The Gmail sender (`SMTP_USERNAME` / `SMTP_PASSWORD`) is shared. On manual runs, the **league** input picks one
-league or both. To add a third league, add a row to the `matrix` in the workflow with suffix `_3` and add `"3"` to the
-`league` input options.
+league or both. To add a third league, add a row to the `matrix` in the workflow with its name and suffix `_3`, and add the
+same name to the `league` input options.
 
 ## Trash talk
 

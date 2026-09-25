@@ -12,7 +12,7 @@ on:
       league:
         description: "Which league"
         type: choice
-        options: [all, "1", "2"]
+        options: [all, "Show Us Your TD's", "Sunday Fundays"]
         default: all
       week:
         description: "Week to recap (leave blank for the last completed week)"
@@ -29,7 +29,7 @@ on:
 
 jobs:
   recap:
-    name: League ${{ matrix.league }}
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
@@ -38,12 +38,15 @@ jobs:
         # Each league reads secrets ending in its suffix: league 1 uses
         # SLEEPER_LEAGUE_ID, EMAIL_TO and GROUPME_BOT_ID; league 2 uses
         # SLEEPER_LEAGUE_ID_2, EMAIL_TO_2 and GROUPME_BOT_ID_2. The SMTP
-        # settings are shared. To add a league, add a row here and to the
-        # "league" input above.
+        # settings are shared. To add a league, add a row here and add its
+        # name to the "league" input above. The name is only a label here;
+        # the recap itself uses the league's name from Sleeper.
         include:
           - league: "1"
+            name: "Show Us Your TD's"
             suffix: ""
           - league: "2"
+            name: "Sunday Fundays"
             suffix: "_2"
     steps:
       - name: Check whether to run
@@ -52,12 +55,12 @@ jobs:
           EVENT: ${{ github.event_name }}
           SCHEDULE: ${{ github.event.schedule }}
           PICKED: ${{ inputs.league || 'all' }}
-          LEAGUE: ${{ matrix.league }}
+          LEAGUE: ${{ matrix.name }}
           LEAGUE_ID: ${{ secrets[format('SLEEPER_LEAGUE_ID{0}', matrix.suffix)] }}
         run: |
           skip() { echo "Skipping: $1"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; }
-          if [ -z "$LEAGUE_ID" ]; then skip "no SLEEPER_LEAGUE_ID${{ matrix.suffix }} secret for league $LEAGUE."; fi
-          if [ "$PICKED" != "all" ] && [ "$PICKED" != "$LEAGUE" ]; then skip "only league $PICKED was requested."; fi
+          if [ -z "$LEAGUE_ID" ]; then skip "no SLEEPER_LEAGUE_ID${{ matrix.suffix }} secret for $LEAGUE."; fi
+          if [ "$PICKED" != "all" ] && [ "$PICKED" != "$LEAGUE" ]; then skip "only $PICKED was requested."; fi
           if [ "$EVENT" = "schedule" ]; then
             if [ "$(TZ=America/Los_Angeles date +%Z)" = "PDT" ]; then want="0 15 * * 2"; else want="0 16 * * 2"; fi
             if [ "$SCHEDULE" != "$want" ]; then skip "'$SCHEDULE' is not 8:00am Pacific right now."; fi
